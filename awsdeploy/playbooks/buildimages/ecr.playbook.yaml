@@ -1,0 +1,87 @@
+---
+- name: Build docker image and push to aws
+  hosts: localhost
+  become: false
+  gather_facts: true
+
+  tasks:
+    - include_vars: vars.yaml
+
+    # Pre-requisites tasks
+    - name: Check for required tools
+      ansible.builtin.stat:
+        path: /usr/local/bin/docker
+      register: docker_check
+
+    - name: Fail if docker is not present
+      ansible.builtin.fail:
+        msg: Docker is not installed
+      when: docker_check.stat.exists == False
+
+    # get value fro vars
+    # - name: Debug ecr_region
+    #   debug:
+    #     var: ecr_region
+
+    # ECR Repository Management
+    - name: Check if ECR repository exists
+      shell: "aws ecr describe-repositories --repository-names {{ app_name }} --profile default --region {{ ecr_region }}"
+      register: ecr_repo_check
+      ignore_errors: true
+
+    - name: Create ECR repo if not found
+      shell: "aws ecr create-repository --repository-name {{ app_name }} --profile default --region {{ ecr_region }}"
+      when: ecr_repo_check.rc >  0
+
+    # Get git revision for versioning
+    - name: Get git revision for versioning
+      shell: "git rev-parse --short=8 HEAD"
+      register: git_rev_parse
+
+    - name: Generate image tag (store in register)
+      set_fact:
+        build_tag: "{{ app_name }}:{{ git_rev_parse.stdout }}"
+
+    - name: Debug build_tag
+      debug:
+        var: build_tag
+
+    # Set ecr uri
+    - name: Combine account ID and image tag
+      set_fact:
+        repo_uri: "{{ aws_account_id }}.dkr.ecr.{{ ecr_region }}.amazonaws.com/{{ build_tag }}"
+
+
+    # Build Docker Image
+    - name: Build Docker image
+      shell: "docker build --platform linux/amd64 --build-arg RAILS_MASTER_KEY={{ rails_master_key }} --build-arg PROJECT_ROOT={{ project_root }} -t {{build_tag}} ."
+      register: docker_build
+      failed_when: docker_build.rc > 0
+
+    # Tag and Push Image (conditional on CI/CD environment)
+    - name: Tag image for ECR (CI/CD)
+      shell: "docker tag {{build_tag}} {{ ecr.repo_uri }}"
+      register: docker_tag
+      failed_when: docker_tag.rc > 0
+
+    # Get login password for ECR push
+    - name: Login to ECR
+      shell: "aws ecr get-login-password --region {{ ecr_region }} --profile {{ ecr_profile }}"
+      register: ecr_token
+
+    # Login to ECR using docker
+    - name: Log into ECR registry
+      # shell: "docker login --username AWS --password-stdin"
+      community.docker.docker_login:
+        registry_url: "{{ repo_uri }}"
+        debug: yes
+        username: "AWS"
+        password: "{{ ecr_token.stdout }}"
+        reauthorize: yes
+
+    - name: Push image to ECR (CI/CD)
+      community.docker.docker_image_push:
+        name: "{{ repo_uri }}"
+      when: lookup('env', 'CI') == 'true'
+
+

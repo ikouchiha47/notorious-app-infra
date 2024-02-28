@@ -1,0 +1,32 @@
+---
+- name: Install Certbot and Generate SSL Certificate
+  hosts: all
+  become: true  # Run tasks with root privileges
+
+  tasks:
+
+    - name: Install Snapd
+      become: true
+      apt:
+        name: snapd
+        state: present
+
+    - name: Install Certbot
+      become: true
+      community.general.snap:
+        name: certbot
+        state: present
+        classic: true
+
+    - name: Generate SSL Certificate
+      command: certbot certonly --webroot -w "{{ acme_dir }}" -d mr-notorious.shop -d www.mr-notorious.shop --email "{{ email }}" --expand --agree-tos --non-interactive
+      become: true 
+
+    - name: Set Up Cron Job for Certificate Renewal
+      cron:
+        name: "Renew SSL Certificate"
+        minute: "0"
+        hour: "12"
+        user: root
+        job: "certbot renew --quiet"
+

@@ -1,0 +1,10 @@
+---
+- name: Run All Playbooks
+  hosts: all  # You can set this to an appropriate host or group
+
+  tasks:
+    - name: Include Playbooks
+      include_playbook: "{{ item }}"
+      with_fileglob:
+        - "playbooks/*.yaml"
+

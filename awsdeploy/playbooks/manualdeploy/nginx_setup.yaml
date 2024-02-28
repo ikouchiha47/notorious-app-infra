@@ -1,0 +1,33 @@
+---
+- name: Install Nginx and Configure Site
+  hosts: all
+  become: true
+  tasks:
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Copy mr_notorious.conf
+      copy:
+        src: ./mr_notorious.conf
+        dest: /etc/nginx/sites-enabled/
+
+    - name: Create acme challenge directory
+      file:
+        path: "{{acme_dir}}"
+        state: directory
+
+    - name: Check Nginx Configuration
+      command: nginx -t
+      changed_when: false
+      ignore_errors: true
+      register: nginx_config_output
+      notify: Reload Nginx
+
+  handlers:
+    - name: Reload Nginx
+      systemd:
+        name: nginx
+        state: restarted
+      when: nginx_config_output.rc == 0

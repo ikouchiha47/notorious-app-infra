@@ -1,0 +1,6 @@
+*.DS_Store
+*.plan
+*state*
+*venv
+**/.terraform/providers/*
+*.pem

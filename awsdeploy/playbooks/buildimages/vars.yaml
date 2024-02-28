@@ -1,0 +1,6 @@
+app_name: "notorious"
+ecr_region: "{{ lookup('env', 'AWS_REGION', default='ap-south-1') }}"
+ecr_profile: "{{ lookup('env', 'AWS_PROFILE', default='default') }}"
+rails_master_key: "{{ lookup('env', 'RAILS_MASTER_KEY') }}"
+aws_account_id: "{{ lookup('env', 'AWS_ACCOUNT') }}"
+project_root: "{{ lookup('env', 'PROJECT_ROOT', default='../..') }}"
